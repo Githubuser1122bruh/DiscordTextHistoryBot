@@ -28,7 +28,7 @@ class MyView(View):
         super().__init__()
 
     @discord.ui.button(label="Click me for a full list of commands!", style=discord.ButtonStyle.primary, custom_id="button")
-    async def button_callback(self, button: Button, interaction: discord.Interaction):
+    async def button_callback(self, interaction: discord.Interaction,  button: Button):
         # Respond to the first button
         print("clicked")
         await interaction.response.send_message("Here is a list of commands you can use:\n"
@@ -42,11 +42,6 @@ class MyView(View):
                                                 "stat levelreset - Reset your level to 1\n")
         
     
-    @discord.ui.button(label="Click me!", style=discord.ButtonStyle.primary, custom_id="my_button")
-    async def my_button_callback(self, button: Button, interaction: discord.Interaction):
-        # Respond to the second button
-        print("clicked")
-        await interaction.response.send_message("You clicked the button!")
 
 # Define the custom Discord client
 class Client(discord.Client):
@@ -77,7 +72,8 @@ class Client(discord.Client):
 
         if message.content.lower() == 'stat levelcheck':
             await message.channel.send(f'You are on level {level}')
-
+        if message.content.lower() == 'stat improve':
+            await message.channel.send('I am a bot that can help you improve your messages!')
 # Override the default aiohttp session with custom SSL context
 async def run_bot():
     async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl_context=ssl_context)) as session:
