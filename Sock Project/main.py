@@ -43,6 +43,7 @@ class MyView(View):
 
 
 # Define the custom bot behavior
+
 @bot.event
 async def on_ready():
     print(f'Logged in as {bot.user}!')
@@ -71,7 +72,7 @@ async def on_message(message):
             level += 1
             await message.channel.send(f'You have leveled up! You are now on level {level}')
             user_message_count[message.author.id] = 0  # Reset the count after leveling up
-
+    
     # Process commands
     if message.content.lower() == 'stat levelcheck':
         await message.channel.send(f'You are on level {level}')
