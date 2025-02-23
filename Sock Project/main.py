@@ -40,47 +40,57 @@ class MyView(View):
                                                 "stat msgstats - Check your message history stats\n"
                                                 "stat level - Check your current level\n"
                                                 "stat levelreset - Reset your level to 1\n")
-        
-    
 
-# Define the custom Discord client
-class Client(discord.Client):
-    async def on_ready(self):
-        print(f'Logged on as {self.user}!')
-        channel = self.get_channel(1286194781168603177)  # Replace with your actual channel ID
-        embed = discord.Embed(title="Welcome", description="Hello World!", color=0x00ff00)
-        view = MyView()  # Create the view with buttons
-        await channel.send(embed=embed, view=view)
 
-    async def on_message(self, message):
-        # Ignore messages sent by the bot itself
-        if message.author == self.user:
-            return
+# Define the custom bot behavior
+@bot.event
+async def on_ready():
+    print(f'Logged in as {bot.user}!')
+    channel = bot.get_channel(1286194781168603177)  # Replace with your actual channel ID
+    embed = discord.Embed(title="Welcome", description="Hello World!", color=0x00ff00)
+    view = MyView()  # Create the view with buttons
+    await channel.send(embed=embed, view=view)
 
-        # Track user messages if they are over 5 characters
-        if len(message.content) > 5:
-            if message.author.id not in user_message_count:
-                user_message_count[message.author.id] = 0
-            user_message_count[message.author.id] += 1
 
-            # Check if user has sent 5 messages
-            if user_message_count[message.author.id] >= 5:
-                global level
-                level += 1
-                await message.channel.send(f'You have leveled up! You are now on level {level}')
-                user_message_count[message.author.id] = 0  # Reset the count after leveling up
+# Handle commands and custom messages
+@bot.event
+async def on_message(message):
+    # Don't let the bot respond to its own messages
+    if message.author == bot.user:
+        return
 
-        if message.content.lower() == 'stat levelcheck':
-            await message.channel.send(f'You are on level {level}')
-        if message.content.lower() == 'stat improve':
-            await message.channel.send('I am a bot that can help you improve your messages!')
+    # Handle custom messages manually (non-command)
+    if len(message.content) > 5:
+        if message.author.id not in user_message_count:
+            user_message_count[message.author.id] = 0
+        user_message_count[message.author.id] += 1
+
+        # Check if the user has sent 5 messages
+        if user_message_count[message.author.id] >= 5:
+            global level
+            level += 1
+            await message.channel.send(f'You have leveled up! You are now on level {level}')
+            user_message_count[message.author.id] = 0  # Reset the count after leveling up
+
+    # Process commands
+    if message.content.lower() == 'stat levelcheck':
+        await message.channel.send(f'You are on level {level}')
+
+    if message.content.lower() == 'stat improve':
+        await message.channel.send('I am a bot that can help you improve your messages!')
+
+    # Call the commands extension's on_message so that commands are processed
+    await bot.process_commands(message)
+
+
 # Override the default aiohttp session with custom SSL context
 async def run_bot():
     async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl_context=ssl_context)) as session:
-        client = Client(intents=discord.Intents.default(), loop=session._loop)
+        bot._session = session  # Attach the session to the bot
         token = os.getenv('DISCORD_BOT_TOKEN')
-        await client.start(token)
-        
+        await bot.start(token)
+
+
 # Start the bot with custom session
 import asyncio
 asyncio.run(run_bot())
