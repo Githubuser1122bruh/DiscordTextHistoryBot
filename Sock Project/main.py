@@ -80,7 +80,7 @@ async def run_bot():
         client = Client(intents=discord.Intents.default(), loop=session._loop)
         token = os.getenv('DISCORD_BOT_TOKEN')
         await client.start(token)
-
+        
 # Start the bot with custom session
 import asyncio
 asyncio.run(run_bot())
