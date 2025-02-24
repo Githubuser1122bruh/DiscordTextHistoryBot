@@ -36,7 +36,9 @@ class MyView(View):
                                                 "stat improve_msg - Get feedback on your message and a refined version of it\n"
                                                 "stat msgstats - Check your message history stats\n"
                                                 "stat level - Check your current level\n"
-                                                "stat levelreset - Reset your level to 1\n")
+                                                "stat levelreset - Reset your level to 1\n"
+                                                "stat showemojis - Show the emojis you've sent\n"
+                                                "stat show")
 # Define the custom bot behavior
 @bot.event
 async def on_ready():
@@ -53,43 +55,56 @@ def extract_emojis(message_content):
 # Handle commands and custom messages
 @bot.event
 async def on_message(message):
-    # Don't let the bot respond to its own messages
     if message.author == bot.user:
         return
-    # Extract emojis from the message
+
     emojis = extract_emojis(message.content)
-    # Store the emojis in a list for each user
+
     if emojis:
         if message.author.id not in user_emojis:
             user_emojis[message.author.id] = []
-        user_emojis[message.author.id].extend(emojis)  # Add new emojis to the user's list
-    # Handle custom messages manually (non-command)
+        user_emojis[message.author.id].extend(emojis)
+
     if len(message.content) > 5:
         if message.author.id not in user_message_count:
             user_message_count[message.author.id] = 0
         user_message_count[message.author.id] += 1
-        # Check if the user has sent 5 messages
+
         if user_message_count[message.author.id] >= 5:
             global level
             level += 1
             await message.channel.send(f'You have leveled up! You are now on level {level}')
-            user_message_count[message.author.id] = 0  # Reset the count after leveling up
-    # Process commands
+            user_message_count[message.author.id] = 0
+
     if message.content.lower() == 'stat levelcheck':
         await message.channel.send(f'You are on level {level}')
+
     if message.content.lower() == 'stat improve':
         await message.channel.send('I am a bot that can help you improve your messages!')
-    # Example: Print the emojis sent by the user in a list format
+
     if message.content.lower() == 'stat showemojis':
         user_emoji_list = user_emojis.get(message.author.id, [])
         if user_emoji_list:
-            emoji_str = ', '.join(user_emoji_list)  # Join the emojis in a comma-separated string
+            emoji_str = ', '.join(user_emoji_list)
             await message.channel.send(f"{message.author.name} has sent these emojis: {emoji_str}")
         else:
             await message.channel.send(f"{message.author.name} hasn't sent any emojis yet.")
-    # Call the commands extension's on_message so that commands are processed
+
+    if message.content.lower() == 'stat showallemojis':
+        if len(user_emojis) >= 2:
+            for user_id, emojis in user_emojis.items():
+                user = bot.get_user(user_id)
+                if user:
+                    emoji_str = ', '.join(emojis)
+                    await message.channel.send(f"{user.name} has sent these emojis: {emoji_str}")
+                else:
+                    await message.channel.send(f"Could not find user with ID: {user_id}")
+        else:
+            await message.channel.send("There are fewer than 2 users who have sent emojis.")
+
     await bot.process_commands(message)
-    print (user_emojis)
+    print(user_emojis)
+
     for word in bad_words:
         if word in message.content.lower():
             await message.channel.send("Level lowered by 1 for using a potty word!")
