@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from discord.ext import commands
 from discord.ui import Button, View
 import aiohttp
+import re
 
 # Custom SSL context setup
 ssl_context = ssl.create_default_context(cafile=certifi.where())  # Set custom SSL context with certificates
@@ -32,7 +33,7 @@ class MyView(View):
         super().__init__()
 
     @discord.ui.button(label="Click me for a full list of commands!", style=discord.ButtonStyle.primary, custom_id="button")
-    async def button_callback(self, interaction: discord.Interaction,  button: Button):
+    async def button_callback(self, interaction: discord.Interaction, button: Button):
         # Respond to the first button
         print("clicked")
         await interaction.response.send_message("Here is a list of commands you can use:\n"
