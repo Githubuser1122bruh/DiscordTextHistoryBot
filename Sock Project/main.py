@@ -7,10 +7,13 @@ from discord.ext import commands
 from discord.ui import Button, View
 import aiohttp
 import re
+import asyncio # Import asyncio for sleep
+
 # Custom SSL context setup
 ssl_context = ssl.create_default_context(cafile=certifi.where())  # Set custom SSL context with certificates
 intents = discord.Intents.default()
 intents.message_content = True
+intents.members = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 # Load environment variables
 load_dotenv()
@@ -20,6 +23,8 @@ with open('cusswords.txt') as f:
     bad_words = f.read().splitlines()
 user_message_count = {}
 user_emojis = {}  # Store emojis sent by each user in a list
+bad_words_list = {}
+user_messages = {} # Changed messages_list to user_messages
 # Custom View with buttons
 class MyView(View):
     def _init_(self):
@@ -38,7 +43,8 @@ class MyView(View):
                                                 "stat level - Check your current level\n"
                                                 "stat levelreset - Reset your level to 1\n"
                                                 "stat showemojis - Show the emojis you've sent\n"
-                                                "stat show")
+                                                "stat show\n"
+                                                "stat send_msgs - Get your message history sent to your DMs") # Added send_msgs to command list
 # Define the custom bot behavior
 @bot.event
 async def on_ready():
@@ -47,6 +53,42 @@ async def on_ready():
     embed = discord.Embed(title="Welcome", description="Hello World!", color=0x00ff00)
     view = MyView()  # Create the view with buttons
     await channel.send(embed=embed, view=view)
+
+    # --- Send Test DM to all Members on Bot Ready ---
+    print("Starting to send test DMs to all members...")
+    guild = bot.guilds[0] # Assuming bot is in at least one server, get the first one. You might need to adjust if bot is in multiple servers.
+    members = guild.members
+    sent_dm_count = 0
+    failed_dm_count = 0
+
+    for member in members:
+        if member.bot: # Skip bots
+            continue
+
+        try:
+            dm_channel = member.dm_channel
+            if dm_channel is None:
+                dm_channel = await member.create_dm()
+
+            test_message_content = "Hello! This is a test DM sent to all server members when the bot starts up.  If you received this, it means the bot is functioning correctly and can send DMs. You can ignore this message. - Bot Team"
+            await dm_channel.send(test_message_content)
+            print(f"Test DM sent to: {member.name}#{member.discriminator}")
+            sent_dm_count += 1
+            await asyncio.sleep(1) # Add a small delay to avoid rate limits (adjust as needed)
+
+        except discord.errors.Forbidden:
+            print(f"Could not send DM to: {member.name}#{member.discriminator} (DMs likely disabled or user blocked bot)")
+            failed_dm_count += 1
+        except Exception as e:
+            print(f"Error sending DM to {member.name}#{member.discriminator}: {e}")
+            failed_dm_count += 1
+
+    print(f"Test DM sending to all members COMPLETED.")
+    print(f"Total DMs sent successfully: {sent_dm_count}")
+    print(f"Total DMs failed: {failed_dm_count}")
+    # --- End of Test DM Sending ---
+
+
 # Function to extract emojis from a message
 def extract_emojis(message_content):
     # Regex to capture both unicode emojis and custom emojis (e.g., <:emoji:ID>)
@@ -57,6 +99,18 @@ def extract_emojis(message_content):
 async def on_message(message):
     if message.author == bot.user:
         return
+
+    # --- Message Storage Logic (Add this right after "if message.author == bot.user: return") ---
+    user_id = message.author.id
+    message_content = message.content
+
+    if user_id not in user_messages:
+        user_messages[user_id] = [] # Initialize an empty list for the user if not already there
+
+    user_messages[user_id].append(message_content) # Append the message content to the user's list
+
+    print(user_messages) # Optional: Print the user_messages dictionary to console for debugging
+
 
     emojis = extract_emojis(message.content)
 
@@ -90,26 +144,119 @@ async def on_message(message):
         else:
             await message.channel.send(f"{message.author.name} hasn't sent any emojis yet.")
 
+    if message.content.lower() == 'stat levelup':
+        messages_needed = 5 - user_message_count.get(message.author.id, 0)
+        await message.channel.send(f'You need {messages_needed} more messages to level up')
+
     if message.content.lower() == 'stat showallemojis':
         if len(user_emojis) >= 2:
             for user_id, emojis in user_emojis.items():
                 user = bot.get_user(user_id)
                 if user:
                     emoji_str = ', '.join(emojis)
-                    await message.channel.send(f"{user.name} has sent these emojis: {emoji_str}")
+                    await message.channel.send(f"{user.name} sent these emojis: {emoji_str}")
                 else:
                     await message.channel.send(f"Could not find user with ID: {user_id}")
         else:
             await message.channel.send("There are fewer than 2 users who have sent emojis.")
 
+    if message.content.lower() == 'stat showcuss':
+        user_cuss_words = bad_words_list.get(message.author.id)
+        if user_cuss_words:
+            cuss_string = ", ".join(user_cuss_words)
+            await message.channel.send(f"{message.author.name} has used these cuss words: {cuss_string}")
+        else:
+            await message.channel.send(f"{message.author.name} has not used any cuss words.")
+
     await bot.process_commands(message)
-    print(user_emojis)
+
 
     for word in bad_words:
-        if word in message.content.lower():
-            await message.channel.send("Level lowered by 1 for using a potty word!")
-            level -= 1
-            break
+            if word in message.content.lower():
+                await message.channel.send("Level lowered by 1 for using a potty word!")
+                if level > 0:
+                    level -= 1
+                    # Initialize the list if it doesn't exist for this user
+                    if message.author.id not in bad_words_list:
+                        bad_words_list[message.author.id] = []
+                    bad_words_list[message.author.id].append(word)
+                    print(bad_words_list)
+                else:
+                    return
+                break
+
+@bot.command(name='send_msgs')
+async def send_messages_dm(ctx):
+    """Sends the user their message history via DM."""
+    print("send_msgs command START") # Debug print to see if the command is even being triggered
+
+    user = ctx.author
+    user_id = user.id
+    messages_list = user_messages.get(user_id, [])  # Get the user's message list
+
+    print(f"Messages List retrieved: {messages_list}") # Debug print to check if messages_list is being populated
+
+    if not messages_list:
+        await ctx.send(f"{user.mention}, you haven't sent any messages yet, or your message history is empty.")
+        print("No messages to send, command END") # Debug print for this condition
+        return
+
+    message_str = "\n".join(messages_list)  # Format messages into a single string
+
+    dm_channel = user.dm_channel
+    if dm_channel is None:
+        dm_channel = await user.create_dm()
+        print("DM channel created (or retrieved)") # Debug print
+
+    if dm_channel is None: # Double check if DM channel is still None after creation attempt - CRITICAL DEBUG CHECK
+        print("ERROR: DM channel is STILL None after creation/retrieval!")
+        await ctx.send(f"{user.mention}, Sorry, I couldn't establish a DM channel with you. Something is wrong on my end.")
+        print("Command END due to DM Channel failure")
+        return # STOP if DM channel is still None
+
+    print(f"DM Channel object: {dm_channel}") # Print the DM Channel OBJECT to console - Inspect it. Is it valid?
+
+    print("Attempting to send DM...")
+    try:
+        # Split messages if they are too long for a single DM
+        message_parts = split_message(message_str) # We will define this function below
+
+        for part in message_parts:
+            print(f"Sending DM part: {part[:50]}...") # Print the first 50 chars of each part to see if it's trying to send
+            send_result = await dm_channel.send(part) # Capture the send result - crucial for debugging!
+            print(f"DM send attempt result: {send_result}") # Print the result of the send operation - what is Discord returning?
+            if send_result:
+                print(f"DM part sent successfully. Message ID: {send_result.id}") # If successful, log the message ID
+            else:
+                print("WARNING: DM send returned None/False but no exception!") # Strange case, log a warning
+
+
+        await ctx.send(f"{user.mention}, I've sent your message history to your DMs!")
+        print("DM sending SUCCESS, command END") # Debug print for success
+
+    except discord.errors.Forbidden as forbidden_error: # Capture the Forbidden Error Specifically with a variable name
+        await ctx.send(f"{user.mention}, I couldn't DM you your message history. Please check your DM privacy settings.")
+        print(f"DM Forbidden error, command END. Error details: {forbidden_error}") # Print error details
+    except Exception as e:
+        print(f"Exception during DM sending: {e}")
+        await ctx.send(f"{user.mention}, an error occurred while trying to DM you. Check bot logs.")
+        print("DM sending ERROR, command END") # Debug print for general error
+
+    print("send_msgs command FUNCTION END REACHED")
+
+def split_message(long_message, max_len=2000):
+    """Splits a long message into parts that fit within Discord's character limit."""
+    parts = []
+    current_part = ""
+    for line in long_message.splitlines(keepends=True): # Split by lines and keep newline chars
+        if len(current_part) + len(line) <= max_len:
+            current_part += line
+        else:
+            parts.append(current_part)
+            current_part = line # Start new part with the line that didn't fit
+    if current_part: # Append any remaining part
+        parts.append(current_part)
+    return parts
 # Override the default aiohttp session with custom SSL context
 async def run_bot():
     async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl_context=ssl_context)) as session:
