@@ -12,6 +12,7 @@ ssl_context = ssl.create_default_context(cafile=certifi.where())  # Set custom S
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
+bad_words_list = {}
 # Load environment variables
 load_dotenv()
 # Initialize some global variables
@@ -36,7 +37,8 @@ class MyView(View):
                                                 "stat improve_msg - Get feedback on your message and a refined version of it\n"
                                                 "stat msgstats - Check your message history stats\n"
                                                 "stat level - Check your current level\n"
-                                                "stat levelreset - Reset your level to 1\n")
+                                                "stat levelreset - Reset your level to 1\n"
+                                                "stat showcuss - Shows the cuss words you have used\n")
 # Define the custom bot behavior
 @bot.event
 async def on_ready():
@@ -91,10 +93,16 @@ async def on_message(message):
     await bot.process_commands(message)
     print (user_emojis)
     for word in bad_words:
+        if message.author.id not in bad_words_list:
+            bad_words_list[message.author.id] = []
         if word in message.content.lower():
-            await message.channel.send("Level lowered by 1 for using a potty word!")
+            await message.channel.send(f"Level lowered by 1 for using a potty word!{word}")
             level -= 1
+            bad_words_list[message.author.id].append(word)
             break
+    if message.content.lower() == 'stat showcuss':
+        cuss_words_by_sender = bad_words_list.get(message.author.id)
+        await message.channel.send(f"{message.author.name} has used these cuss words: {cuss_words_by_sender.join(', ')}")
 # Override the default aiohttp session with custom SSL context
 async def run_bot():
     async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl_context=ssl_context)) as session:
