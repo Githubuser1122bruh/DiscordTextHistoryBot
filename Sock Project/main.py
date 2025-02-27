@@ -7,10 +7,13 @@ from discord.ext import commands
 from discord.ui import Button, View
 import aiohttp
 import re
+import asyncio # Import asyncio for sleep
+
 # Custom SSL context setup
 ssl_context = ssl.create_default_context(cafile=certifi.where())  # Set custom SSL context with certificates
 intents = discord.Intents.default()
 intents.message_content = True
+intents.members = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 bad_words_list = {}
 # Load environment variables
@@ -21,6 +24,8 @@ with open('cusswords.txt') as f:
     bad_words = f.read().splitlines()
 user_message_count = {}
 user_emojis = {}  # Store emojis sent by each user in a list
+bad_words_list = {}
+user_messages = {} # Changed messages_list to user_messages
 # Custom View with buttons
 class MyView(View):
     def _init_(self):
@@ -38,7 +43,9 @@ class MyView(View):
                                                 "stat msgstats - Check your message history stats\n"
                                                 "stat level - Check your current level\n"
                                                 "stat levelreset - Reset your level to 1\n"
-                                                "stat showcuss - Shows the cuss words you have used\n")
+                                                "stat showemojis - Show the emojis you've sent\n"
+                                                "stat show\n"
+                                                "stat send_msgs - Get your message history sent to your DMs") # Added send_msgs to command list
 # Define the custom bot behavior
 @bot.event
 async def on_ready():
@@ -47,6 +54,42 @@ async def on_ready():
     embed = discord.Embed(title="Welcome", description="Hello World!", color=0x00ff00)
     view = MyView()  # Create the view with buttons
     await channel.send(embed=embed, view=view)
+
+    # --- Send Test DM to all Members on Bot Ready ---
+    print("Starting to send test DMs to all members...")
+    guild = bot.guilds[0] # Assuming bot is in at least one server, get the first one. You might need to adjust if bot is in multiple servers.
+    members = guild.members
+    sent_dm_count = 0
+    failed_dm_count = 0
+
+    for member in members:
+        if member.bot: # Skip bots
+            continue
+
+        try:
+            dm_channel = member.dm_channel
+            if dm_channel is None:
+                dm_channel = await member.create_dm()
+
+            test_message_content = "Hello! This is a test DM sent to all server members when the bot starts up.  If you received this, it means the bot is functioning correctly and can send DMs. You can ignore this message. - Bot Team"
+            await dm_channel.send(test_message_content)
+            print(f"Test DM sent to: {member.name}#{member.discriminator}")
+            sent_dm_count += 1
+            await asyncio.sleep(1) # Add a small delay to avoid rate limits (adjust as needed)
+
+        except discord.errors.Forbidden:
+            print(f"Could not send DM to: {member.name}#{member.discriminator} (DMs likely disabled or user blocked bot)")
+            failed_dm_count += 1
+        except Exception as e:
+            print(f"Error sending DM to {member.name}#{member.discriminator}: {e}")
+            failed_dm_count += 1
+
+    print(f"Test DM sending to all members COMPLETED.")
+    print(f"Total DMs sent successfully: {sent_dm_count}")
+    print(f"Total DMs failed: {failed_dm_count}")
+    # --- End of Test DM Sending ---
+
+
 # Function to extract emojis from a message
 def extract_emojis(message_content):
     # Regex to capture both unicode emojis and custom emojis (e.g., <:emoji:ID>)
@@ -55,54 +98,85 @@ def extract_emojis(message_content):
 # Handle commands and custom messages
 @bot.event
 async def on_message(message):
-    # Don't let the bot respond to its own messages
     if message.author == bot.user:
         return
-    # Extract emojis from the message
+
+    # --- Message Storage Logic (Add this right after "if message.author == bot.user: return") ---
+    user_id = message.author.id
+    message_content = message.content
+
+    if user_id not in user_messages:
+        user_messages[user_id] = [] # Initialize an empty list for the user if not already there
+
+    user_messages[user_id].append(message_content) # Append the message content to the user's list
+
+    print(user_messages) # Optional: Print the user_messages dictionary to console for debugging
+
+
     emojis = extract_emojis(message.content)
-    # Store the emojis in a list for each user
+
     if emojis:
         if message.author.id not in user_emojis:
             user_emojis[message.author.id] = []
-        user_emojis[message.author.id].extend(emojis)  # Add new emojis to the user's list
-    # Handle custom messages manually (non-command)
+        user_emojis[message.author.id].extend(emojis)
+
     if len(message.content) > 5:
         if message.author.id not in user_message_count:
             user_message_count[message.author.id] = 0
         user_message_count[message.author.id] += 1
-        # Check if the user has sent 5 messages
+
         if user_message_count[message.author.id] >= 5:
             global level
             level += 1
             await message.channel.send(f'You have leveled up! You are now on level {level}')
-            user_message_count[message.author.id] = 0  # Reset the count after leveling up
-    # Process commands
+            user_message_count[message.author.id] = 0
+
     if message.content.lower() == 'stat levelcheck':
         await message.channel.send(f'You are on level {level}')
+
     if message.content.lower() == 'stat improve':
         await message.channel.send('I am a bot that can help you improve your messages!')
-    # Example: Print the emojis sent by the user in a list format
+
     if message.content.lower() == 'stat showemojis':
         user_emoji_list = user_emojis.get(message.author.id, [])
         if user_emoji_list:
-            emoji_str = ', '.join(user_emoji_list)  # Join the emojis in a comma-separated string
+            emoji_str = ', '.join(user_emoji_list)
             await message.channel.send(f"{message.author.name} has sent these emojis: {emoji_str}")
         else:
             await message.channel.send(f"{message.author.name} hasn't sent any emojis yet.")
-    # Call the commands extension's on_message so that commands are processed
-    await bot.process_commands(message)
-    print (user_emojis)
-    for word in bad_words:
-        if message.author.id not in bad_words_list:
-            bad_words_list[message.author.id] = []
-        if word in message.content.lower():
-            await message.channel.send(f"Level lowered by 1 for using a potty word!{word}")
-            level -= 1
-            bad_words_list[message.author.id].append(word)
-            break
+
+    if message.content.lower() == 'stat levelup':
+        messages_needed = 5 - user_message_count.get(message.author.id, 0)
+        await message.channel.send(f'You need {messages_needed} more messages to level up')
+
+    if message.content.lower() == 'stat showallemojis':
+        if len(user_emojis) >= 2:
+            for user_id, emojis in user_emojis.items():
+                user = bot.get_user(user_id)
+                if user:
+                    emoji_str = ', '.join(emojis)
+                    await message.channel.send(f"{user.name} sent these emojis: {emoji_str}")
+                else:
+                    await message.channel.send(f"Could not find user with ID: {user_id}")
+        else:
+            await message.channel.send("There are fewer than 2 users who have sent emojis.")
+
     if message.content.lower() == 'stat showcuss':
-        cuss_words_by_sender = bad_words_list.get(message.author.id)
-        await message.channel.send(f"{message.author.name} has used these cuss words: {cuss_words_by_sender.join(', ')}")
+        user_cuss_words = bad_words_list.get(message.author.id)
+        if user_cuss_words:
+            cuss_string = ", ".join(user_cuss_words)
+            await message.channel.send(f"{message.author.name} has used these cuss words: {cuss_string}")
+        else:
+            await message.channel.send(f"{message.author.name} has not used any cuss words.")
+
+    await bot.process_commands(message)
+
+
+    for word in bad_words:
+        if word in message.content.lower():
+            await message.channel.send("Level lowered by 1 for using a potty word!")
+            level -= 1
+            break
 # Override the default aiohttp session with custom SSL context
 async def run_bot():
     async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl_context=ssl_context)) as session:
