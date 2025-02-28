@@ -168,96 +168,96 @@ async def on_message(message):
         else:
             await message.channel.send(f"{message.author.name} has not used any cuss words.")
 
+
+
     if message.content.lower() == 'stat sendmsgs':
-            """Sends the user their message history via DM."""
-    print("send_msgs command START") # Debug print to see if the command is even being triggered
+        """Sends the user their message history via DM."""
+        print("send_msgs command START")  # Debug print to see if the command is even being triggered
 
-    user = ctx.author
-    user_id = user.id
-    messages_list = user_messages.get(user_id, [])  # Get the user's message list
+        user = message.author
+        user_id = user.id
+        messages_list = user_messages.get(user_id, [])  # Get the user's message list
 
-    print(f"Messages List retrieved: {messages_list}") # Debug print to check if messages_list is being populated
+        print(f"Messages List retrieved: {messages_list}")  # Debug print to check if messages_list is being populated
 
-    if not messages_list:
-        await ctx.send(f"{user.mention}, you haven't sent any messages yet, or your message history is empty.")
-        print("No messages to send, command END") # Debug print for this condition
-        return
+        if not messages_list:
+            await message.channel.send(f"{user.mention}, you haven't sent any messages yet, or your message history is empty.")
+            print("No messages to send, command END")  # Debug print for this condition
+            return
 
-    message_str = "\n".join(messages_list)  # Format messages into a single string
+        message_str = "\n".join(messages_list)  # Format messages into a single string
 
-    dm_channel = user.dm_channel
-    if dm_channel is None:
-        dm_channel = await user.create_dm()
-        print("DM channel created (or retrieved)") # Debug print
+        dm_channel = user.dm_channel
+        if dm_channel is None:
+            dm_channel = await user.create_dm()
+            print("DM channel created (or retrieved)")  # Debug print
 
-    if dm_channel is None: # Double check if DM channel is still None after creation attempt - CRITICAL DEBUG CHECK
-        print("ERROR: DM channel is STILL None after creation/retrieval!")
-        await ctx.send(f"{user.mention}, Sorry, I couldn't establish a DM channel with you. Something is wrong on my end.")
-        print("Command END due to DM Channel failure")
-        return # STOP if DM channel is still None
+        if dm_channel is None:  # Double check if DM channel is still None after creation attempt - CRITICAL DEBUG CHECK
+            print("ERROR: DM channel is STILL None after creation/retrieval!")
+            await message.channel.send(f"{user.mention}, Sorry, I couldn't establish a DM channel with you. Something is wrong on my end.")
+            print("Command END due to DM Channel failure")
+            return  # STOP if DM channel is still None
 
-    print(f"DM Channel object: {dm_channel}") # Print the DM Channel OBJECT to console - Inspect it. Is it valid?
+        print(f"DM Channel object: {dm_channel}")  # Print the DM Channel OBJECT to console - Inspect it. Is it valid?
 
-    print("Attempting to send DM...")
-    try:
-        # Split messages if they are too long for a single DM
-        message_parts = split_message(message_str) # We will define this function below
+        print("Attempting to send DM...")
+        try:
+            # Split messages if they are too long for a single DM
+            message_parts = split_message(message_str)  # Define this function below
 
-        for part in message_parts:
-            print(f"Sending DM part: {part[:50]}...") # Print the first 50 chars of each part to see if it's trying to send
-            send_result = await dm_channel.send(part) # Capture the send result - crucial for debugging!
-            print(f"DM send attempt result: {send_result}") # Print the result of the send operation - what is Discord returning?
-            if send_result:
-                print(f"DM part sent successfully. Message ID: {send_result.id}") # If successful, log the message ID
-            else:
-                print("WARNING: DM send returned None/False but no exception!") # Strange case, log a warning
+            for part in message_parts:
+                print(f"Sending DM part: {part[:50]}...")  # Print the first 50 chars of each part to see if it's trying to send
+                send_result = await dm_channel.send(part)  # Capture the send result - crucial for debugging!
+                print(f"DM send attempt result: {send_result}")  # Print the result of the send operation - what is Discord returning?
+                if send_result:
+                    print(f"DM part sent successfully. Message ID: {send_result.id}")  # If successful, log the message ID
+                else:
+                    print("WARNING: DM send returned None/False but no exception!")  # Strange case, log a warning
 
+            await message.channel.send(f"{user.mention}, I've sent your message history to your DMs!")
+            print("DM sending SUCCESS, command END")  # Debug print for success
 
-        await ctx.send(f"{user.mention}, I've sent your message history to your DMs!")
-        print("DM sending SUCCESS, command END") # Debug print for success
+        except discord.errors.Forbidden as forbidden_error:  # Capture the Forbidden Error Specifically with a variable name
+            await message.channel.send(f"{user.mention}, I couldn't DM you your message history. Please check your DM privacy settings.")
+            print(f"DM Forbidden error, command END. Error details: {forbidden_error}")  # Print error details
+        except Exception as e:
+            print(f"Exception during DM sending: {e}")
+            await message.channel.send(f"{user.mention}, an error occurred while trying to DM you. Check bot logs.")
+            print("DM sending ERROR, command END")  # Debug print for general error
 
-    except discord.errors.Forbidden as forbidden_error: # Capture the Forbidden Error Specifically with a variable name
-        await ctx.send(f"{user.mention}, I couldn't DM you your message history. Please check your DM privacy settings.")
-        print(f"DM Forbidden error, command END. Error details: {forbidden_error}") # Print error details
-    except Exception as e:
-        print(f"Exception during DM sending: {e}")
-        await ctx.send(f"{user.mention}, an error occurred while trying to DM you. Check bot logs.")
-        print("DM sending ERROR, command END") # Debug print for general error
-
-    print("send_msgs command FUNCTION END REACHED")
-
-    await bot.process_commands(message)
-
+        print("send_msgs command FUNCTION END REACHED")
 
     for word in bad_words:
-            if word in message.content.lower():
-                await message.channel.send("Level lowered by 1 for using a potty word!")
-                if level > 0:
-                    level -= 1
-                    # Initialize the list if it doesn't exist for this user
-                    if message.author.id not in bad_words_list:
-                        bad_words_list[message.author.id] = []
-                    bad_words_list[message.author.id].append(word)
-                    print(bad_words_list)
-                else:
-                    return
-                break
+        if word in message.content.lower():
+            await message.channel.send("Level lowered by 1 for using a potty word!")
+            if level > 0:
+                level -= 1
+                # Initialize the list if it doesn't exist for this user
+                if message.author.id not in bad_words_list:
+                    bad_words_list[message.author.id] = []
+                bad_words_list[message.author.id].append(word)
+                print(bad_words_list)
+            else:
+                return
+            break
 
+    await bot.process_commands(message)
 
 
 def split_message(long_message, max_len=2000):
     """Splits a long message into parts that fit within Discord's character limit."""
     parts = []
     current_part = ""
-    for line in long_message.splitlines(keepends=True): # Split by lines and keep newline chars
+    for line in long_message.splitlines(keepends=True):  # Split by lines and keep newline chars
         if len(current_part) + len(line) <= max_len:
             current_part += line
         else:
             parts.append(current_part)
-            current_part = line # Start new part with the line that didn't fit
-    if current_part: # Append any remaining part
+            current_part = line  # Start new part with the line that didn't fit
+    if current_part:  # Append any remaining part
         parts.append(current_part)
     return parts
+
 # Override the default aiohttp session with custom SSL context
 async def run_bot():
     async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl_context=ssl_context)) as session:
