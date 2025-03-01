@@ -8,6 +8,7 @@ from discord.ui import Button, View
 import aiohttp
 import re
 import asyncio # Import asyncio for sleep
+from model import use_deepseek_api
 
 # Custom SSL context setup
 ssl_context = ssl.create_default_context(cafile=certifi.where())  # Set custom SSL context with certificates
@@ -168,7 +169,30 @@ async def on_message(message):
         else:
             await message.channel.send(f"{message.author.name} has not used any cuss words.")
 
-
+    if message.content.lower() == 'stat eval_msgs':
+        user = message.author
+        user_id = user.id
+        dm_channel = user.dm_channel
+        if dm_channel is None:
+            dm_channel = await user.create_dm()
+        await dm_channel.send(use_deepseek_api("messages_eval", "C", user_messages.get(user_id, [])))
+    elif message.content.lower() == 'stat improve_msg':
+        user = message.author
+        user_id = user.id
+        dm_channel = user.dm_channel
+        user_message = message.content
+        if dm_channel is None:
+            dm_channel = await user.create_dm()
+        await dm_channel.send(use_deepseek_api("improve_message", user_message, user_messages.get(user_id, [])))
+    elif message.content.lower() == 'stat msgstats':
+        user = message.author
+        user_id = user.id
+        messages_list = user_messages.get(user_id, [])
+        dm_channel = user.dm_channel
+        if dm_channel is None:
+            dm_channel = await user.create_dm()
+        await dm_channel.send(use_deepseek_api("messages_eval_level", "C", messages_list))
+        
 
     if message.content.lower() == 'stat sendmsgs':
         """Sends the user their message history via DM."""
