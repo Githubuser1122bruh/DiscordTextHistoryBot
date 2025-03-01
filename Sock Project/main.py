@@ -168,31 +168,40 @@ async def on_message(message):
             await message.channel.send(f"{message.author.name} has used these cuss words: {cuss_string}")
         else:
             await message.channel.send(f"{message.author.name} has not used any cuss words.")
+    
+    user = message.author
+    user_id = user.id
+    dm_channel = user.dm_channel
+    
+    if dm_channel is None:
+        dm_channel = await user.create_dm()
+    
+    print(f"Received command: {message.content.lower()} from {user.name}")
 
     if message.content.lower() == 'stat eval_msgs':
-        user = message.author
-        user_id = user.id
-        dm_channel = user.dm_channel
-        if dm_channel is None:
-            dm_channel = await user.create_dm()
-        await dm_channel.send(use_deepseek_api("messages_eval", "C", user_messages.get(user_id, [])))
-    elif message.content.lower() == 'stat improve_msg':
-        user = message.author
-        user_id = user.id
-        dm_channel = user.dm_channel
-        user_message = message.content
-        if dm_channel is None:
-            dm_channel = await user.create_dm()
-        await dm_channel.send(use_deepseek_api("improve_message", user_message, user_messages.get(user_id, [])))
-    elif message.content.lower() == 'stat msgstats':
-        user = message.author
-        user_id = user.id
         messages_list = user_messages.get(user_id, [])
-        dm_channel = user.dm_channel
-        if dm_channel is None:
-            dm_channel = await user.create_dm()
-        await dm_channel.send(use_deepseek_api("messages_eval_level", "C", messages_list))
+        print(f"Evaluating messages for {user.name}: {messages_list}")  # Debug log
         
+        response = use_deepseek_api("messages_eval", "C", messages_list)
+        await dm_channel.send(response)
+
+    elif message.content.lower() == 'stat improve_msg':
+        user_message = message.content
+        messages_list = user_messages.get(user_id, [])
+        
+        print(f"Improving message for {user.name}: {user_message}")  # Debug log
+        
+        response = use_deepseek_api("improve_message", user_message, messages_list)
+        await dm_channel.send(response)
+
+    elif message.content.lower() == 'stat msgstats':
+        messages_list = user_messages.get(user_id, [])
+        
+        print(f"Getting message stats for {user.name}: {messages_list}")  # Debug log
+        
+        response = use_deepseek_api("messages_eval_level", "C", messages_list)
+        await dm_channel.send(response)
+
 
     if message.content.lower() == 'stat sendmsgs':
         """Sends the user their message history via DM."""
