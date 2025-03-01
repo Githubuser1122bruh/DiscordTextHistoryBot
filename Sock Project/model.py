@@ -1,6 +1,5 @@
 import requests
-user_messages = ["hey, what's up?", "you failure, you can't even make a git repo", "thx so much, ur so helpful"]
-def use_deepseek_api(type_of_data, data, user_messages=user_messages):
+def use_deepseek_api(type_of_data, data, user_messages):
     """
     This function uses the Deepseek API provided by Hack Club to analyze and critique messages.
     """
@@ -21,19 +20,13 @@ def use_deepseek_api(type_of_data, data, user_messages=user_messages):
         print("Error: Invalid type_of_data.")
         return
 
-    # Construct the payload
     payload = {
         "messages": [{"role": "user", "content": prompt}]
     }
-
-    # Make the POST request
     response = requests.post(url, headers=headers, json=payload)
 
-    # Debugging: Print status code and raw response
     print("Status code:", response.status_code)
     print("Response:", response.text)
-
-    # Check if the request was successful
     if response.status_code == 200:
         try:
             # Parse the JSON response
@@ -48,8 +41,7 @@ def use_deepseek_api(type_of_data, data, user_messages=user_messages):
             print("Error: The JSON structure is not as expected.")
         except requests.exceptions.JSONDecodeError:
             print("Error: The response is not valid JSON.")
+    elif response.status_code == 400:
+        print("Deepseek API is dead :(")
     else:
         print(f"API Error: {response.status_code} - {response.text}")
-
-# Example usage
-use_deepseek_api("improve_message", "Hey, how are you doing today?")
