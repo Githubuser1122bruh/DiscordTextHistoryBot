@@ -181,9 +181,10 @@ async def on_message(message):
     if message.content.lower() == 'stat eval_msgs':
         messages_list = user_messages.get(user_id, [])
         print(f"Evaluating messages for {user.name}: {messages_list}")  # Debug log
-        
         response = use_deepseek_api("messages_eval", "C", messages_list)
+        await message.channel.send(response)
         await dm_channel.send(response)
+        await message.channel.send("testthing")
 
     elif message.content.lower() == 'stat improve_msg':
         user_message = message.content
@@ -197,7 +198,7 @@ async def on_message(message):
     elif message.content.lower() == 'stat msgstats':
         messages_list = user_messages.get(user_id, [])
         
-        print(f"Getting message stats for {user.name}: {messages_list}")  # Debug log
+        print(f"Getting message stats for {user.name}: {messages_list}")
         
         response = use_deepseek_api("messages_eval_level", "C", messages_list)
         await dm_channel.send(response)
@@ -205,27 +206,27 @@ async def on_message(message):
 
     if message.content.lower() == 'stat sendmsgs':
         """Sends the user their message history via DM."""
-        print("send_msgs command START")  # Debug print to see if the command is even being triggered
+        print("send_msgs command START")
 
         user = message.author
         user_id = user.id
-        messages_list = user_messages.get(user_id, [])  # Get the user's message list
+        messages_list = user_messages.get(user_id, [])
 
-        print(f"Messages List retrieved: {messages_list}")  # Debug print to check if messages_list is being populated
+        print(f"Messages List retrieved: {messages_list}")
 
         if not messages_list:
             await message.channel.send(f"{user.mention}, you haven't sent any messages yet, or your message history is empty.")
-            print("No messages to send, command END")  # Debug print for this condition
+            print("No messages to send, command END")
             return
 
-        message_str = "\n".join(messages_list)  # Format messages into a single string
+        message_str = "\n".join(messages_list)
 
         dm_channel = user.dm_channel
         if dm_channel is None:
             dm_channel = await user.create_dm()
-            print("DM channel created (or retrieved)")  # Debug print
+            print("DM channel created (or retrieved)")
 
-        if dm_channel is None:  # Double check if DM channel is still None after creation attempt - CRITICAL DEBUG CHECK
+        if dm_channel is None:
             print("ERROR: DM channel is STILL None after creation/retrieval!")
             await message.channel.send(f"{user.mention}, Sorry, I couldn't establish a DM channel with you. Something is wrong on my end.")
             print("Command END due to DM Channel failure")
